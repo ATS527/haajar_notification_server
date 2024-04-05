@@ -1,0 +1,137 @@
+const express = require('express');
+const app = express();
+require("dotenv").config();
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const admin = require('firebase-admin');
+
+app.use(bodyParser.json());
+app.use(cors());
+
+var serviceAccount = require("./configs/project-haajar-10d7e-firebase-adminsdk-kgma4-8fe93d2953.json");
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+app.get("/get-admins", (req, res) => {
+    const { api } = req.headers;
+    if (api === process.env.API_KEY) {
+        res.status(200).json({
+            success: true,
+            admins: process.env.ADMINS.split(",")
+        });
+    } else {
+        res.status(401).send("Unauthorized");
+    }
+});
+
+app.post('/sendAssignedFacultyNotification', (req, res) => {
+    try {
+        const { year_with_class, hour, subject, faculty, day } = req.body;
+
+        if (req.headers.api !== process.env.API_KEY) {
+            return res.status(401).send("Unauthorized");
+        }
+
+        const message = {
+            android: {
+                notification: {
+                    title: "New Faculty Assigned",
+                    body: `In ${year_with_class} on ${day} at ${hour} hour, ${faculty} is assigned for ${subject}`,
+                    clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+                }
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        'mutable-content': 1,
+                        'category': 'INVITE_CATEGORY'
+                    }
+                },
+            },
+            topic: "assignedFaculty"
+        }
+
+        admin.messaging().send(message)
+            .then((response) => {
+                // Response is a message ID string.
+                console.log('Successfully sent message:', response);
+                res.status(200).json({
+                    success: true,
+                    message: "Notification sent successfully"
+                });
+            })
+            .catch((error) => {
+                console.log('Error sending message:', error);
+                res.status(500).json({
+                    success: false,
+                    message: "Error sending notification"
+                });
+            });
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({
+            success: false,
+            message: "Error sending notification"
+        });
+    }
+});
+
+app.post("/sendGeneralNotification", (req, res) => {
+    try {
+        const { title, description } = req.body;
+
+        if (req.headers.api !== process.env.API_KEY) {
+            return res.status(401).send("Unauthorized");
+        }
+
+        const message = {
+            android: {
+                notification: {
+                    title: title,
+                    body: description,
+                    clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+                }
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        'mutable-content': 1,
+                        'category': 'INVITE_CATEGORY'
+                    }
+                },
+            },
+            topic: "generalAnnouncements"
+        }
+
+        admin.messaging().send(message)
+            .then((response) => {
+                // Response is a message ID string.
+                console.log('Successfully sent message:', response);
+                res.status(200).json({
+                    success: true,
+                    message: "Notification sent successfully"
+                });
+            })
+            .catch((error) => {
+                console.log('Error sending message:', error);
+                res.status(500).json({
+                    success: false,
+                    message: "Error sending notification"
+                });
+            });
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({
+            success: false,
+            message: "Error sending notification"
+        });
+    }
+});
+
+app.listen(process.env.PORT, () => {
+    console.log(`Server is running on port ${process.env.PORT}`);
+});
+
+
